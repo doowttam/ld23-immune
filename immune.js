@@ -18,6 +18,10 @@
       };
       this.bullets = [];
       this.germs = [];
+      this.status = {
+        sickness: 0,
+        score: 0
+      };
       this.buttons.start.onclick = this.play;
       this.buttons.pause.onclick = this.pause;
       this.key = new Key;
@@ -39,13 +43,45 @@
       this.resetCanvas();
       this.drawBullets();
       damage = this.drawGerms(this.bullets);
-      if (damage) {
-        this.context.fillStyle = 'red';
-        this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
-      }
       this.defender.move(this.canvas, this.key, this.bullets);
       this.defender.draw(this.context);
-      return this.spawnGerms();
+      this.spawnGerms();
+      this.drawStatus();
+      if (this.status.sickness > 99) {
+        return this.gameOver();
+      } else if (damage) {
+        this.context.fillStyle = 'red';
+        return this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      }
+    };
+
+    Immune.prototype.gameOver = function() {
+      this.pause();
+      this.context.fillStyle = 'rgba(0,0,0,.7)';
+      this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.context.fillStyle = 'white';
+      this.context.font = 'bold 48px sans-serif';
+      this.context.textAlign = 'center';
+      this.context.fillText("You got sick!", this.canvas.width / 2, 125);
+      this.context.fillStyle = 'white';
+      this.context.font = 'bold 36px sans-serif';
+      this.context.textAlign = 'center';
+      return this.context.fillText("Score: " + this.status.score, this.canvas.width / 2, 200);
+    };
+
+    Immune.prototype.drawStatus = function() {
+      this.context.fillStyle = 'rgba(0,0,0,.5)';
+      this.context.fillRect(0, 25, 75, 24);
+      this.context.fillStyle = 'white';
+      this.context.font = 'bold 12px sans-serif';
+      this.context.textAlign = 'left';
+      this.context.fillText("Score: " + this.status.score, 5, 42);
+      this.context.fillStyle = 'rgba(0,0,0,.5)';
+      this.context.fillRect(this.canvas.width, 25, -100, 24);
+      this.context.fillStyle = 'white';
+      this.context.font = 'bold 12px sans-serif';
+      this.context.textAlign = 'right';
+      return this.context.fillText('Sickness: ' + this.status.sickness + '%', this.canvas.width - 5, 42);
     };
 
     Immune.prototype.spawnGerms = function() {
@@ -67,7 +103,9 @@
           germ.draw(this.context);
           if (germ.isHit(bullets)) {
             toCleanUp.push(germIndex);
+            this.status.score++;
           } else if (germ.isOffscreen(this.canvas)) {
+            this.status.sickness = this.status.sickness + 20;
             damage = true;
             toCleanUp.push(germIndex);
           }
