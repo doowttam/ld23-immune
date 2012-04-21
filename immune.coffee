@@ -16,6 +16,9 @@ class Immune
     @status =
       sickness: 0
       score   : 0
+      freeze: false
+      activeFreezePowerUp: null
+
 
     @buttons.start.onclick = @play
     @buttons.pause.onclick = @pause
@@ -42,8 +45,9 @@ class Immune
     @defender.move(@canvas, @key, @bullets)
     @defender.draw(@context)
 
-    @spawnGerms()
-    @spawnPowerUps()
+    if !@status.freeze
+      @spawnGerms()
+      @spawnPowerUps()
 
     @drawStatus()
 
@@ -88,7 +92,10 @@ class Immune
   spawnGerms: ->
     if Math.random() < 0.01
       randX = Math.ceil Math.random() * @canvas.width
-      @germs.push( new Germ randX, 0 );
+      if Math.random() < 0.7
+        @germs.push( new Germ randX, 0 );
+      else
+        @germs.push( new GiantGerm randX, 0 );
 
   spawnPowerUps: ->
     if Math.random() < 0.005
@@ -102,21 +109,25 @@ class Immune
     if @germs.length > 0
       for germIndex in [ 0 .. @germs.length - 1 ]
         germ = @germs[germIndex]
-        germ.move(@context)
+        germ.move(@context) if !@status.freeze
         germ.draw(@context)
 
         bulletHit  = germ.isHit(bullets)
         powerUpHit = germ.isHit(powerups)
         if bulletHit.hit
-          toCleanUp.push germIndex
           if bulletHit.absorb
+            germ.health = 0
             @status.sickness = @status.sickness + germ.damage
             damage = true
           else
+            germ.health--
             @status.score++
+
+          toCleanUp.push germIndex if germ.health < 1
+
         else if powerUpHit.hit
           toCleanUp.push germIndex
-          powerUpHit.item.takeDamage()
+          powerUpHit.item.takeDamage(germ.damage)
         else if germ.isOffscreen(@canvas)
           @status.sickness = @status.sickness + germ.damage
           damage = true
@@ -140,7 +151,7 @@ class Immune
         if powerupHit.hit
           toCleanUp.push powerupIndex
           if powerupHit.absorb
-            powerup.activate(@canvas)
+            powerup.activate(@canvas, @status)
             @activePowerUps.push powerup
         else if powerup.isOffscreen(@canvas)
           toCleanUp.push powerupIndex
@@ -215,6 +226,7 @@ class Germ
     @width = 10
     @height = 10
     @damage = 20
+    @health = 1
 
   draw: (context)->
     context.fillStyle = 'green'
@@ -234,18 +246,60 @@ class Germ
         return { hit: true, absorb: item.absorb, item: item }
     return { hit: false }
 
-class PowerUp extends Germ
-  activate: (canvas) ->
-    @width = canvas.width
-    @x = 0
-    @health = 3
+class GiantGerm extends Germ
+  constructor: (@x, @y) ->
+    @speed = 1
+    @width = 20
+    @height = 20
+    @damage = 60
+    @health = 30
 
-  takeDamage: ->
-    @health--
+class PowerUp extends Germ
+  constructor: (@x, @y) ->
+    @speed = 1
+    @width = 10
+    @height = 10
+    @damage = 20
+
+    if Math.random() < 0.5
+      @type = 'freeze'
+    else
+      @type = 'shield'
+
+  freezeTimeout: null
+
+  cancelFreeze: ->
+    clearTimeout @freezeTimeout
+    @health = 0
+
+  activate: (canvas, status) ->
+    if @type == 'freeze'
+      status.freeze = true
+
+      if status.activeFreezePowerUp
+        status.activeFreezePowerUp.cancelFreeze()
+
+      status.activeFreezePowerUp = @
+      @freezeTimeout =
+        setTimeout =>
+          status.freeze = false
+          status.activeFreezePowerUp = null
+          @health = 0
+        , 3000
+    else
+      @width = canvas.width
+      @x = 0
+      @health = 60
+
+  takeDamage: (damage) ->
+    @health = @health - damage
     @height = @height - 2
 
   draw: (context) ->
-    context.fillStyle = 'blue'
+    if @type == 'shield'
+      context.fillStyle = 'blue'
+    else
+      context.fillStyle = 'purple'
     context.fillRect @x, @y, @width, @height
 
 class Defender
