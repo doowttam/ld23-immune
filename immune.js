@@ -1,5 +1,5 @@
 (function() {
-  var AbsorbBullet, Bullet, Defender, Germ, Immune, Key, PowerUp,
+  var AbsorbBullet, Bullet, Defender, Germ, GiantGerm, Immune, Key, PowerUp,
     __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
     __hasProp = Object.prototype.hasOwnProperty,
     __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor; child.__super__ = parent.prototype; return child; };
@@ -24,7 +24,9 @@
       this.activePowerUps = [];
       this.status = {
         sickness: 0,
-        score: 0
+        score: 0,
+        freeze: false,
+        activeFreezePowerUp: null
       };
       this.buttons.start.onclick = this.play;
       this.buttons.pause.onclick = this.pause;
@@ -51,8 +53,10 @@
       this.drawActivePowerUps(this.bullets);
       this.defender.move(this.canvas, this.key, this.bullets);
       this.defender.draw(this.context);
-      this.spawnGerms();
-      this.spawnPowerUps();
+      if (!this.status.freeze) {
+        this.spawnGerms();
+        this.spawnPowerUps();
+      }
       this.drawStatus();
       if (this.status.sickness > 99) {
         return this.gameOver();
@@ -95,7 +99,11 @@
       var randX;
       if (Math.random() < 0.01) {
         randX = Math.ceil(Math.random() * this.canvas.width);
-        return this.germs.push(new Germ(randX, 0));
+        if (Math.random() < 0.7) {
+          return this.germs.push(new Germ(randX, 0));
+        } else {
+          return this.germs.push(new GiantGerm(randX, 0));
+        }
       }
     };
 
@@ -114,21 +122,23 @@
       if (this.germs.length > 0) {
         for (germIndex = 0, _ref = this.germs.length - 1; 0 <= _ref ? germIndex <= _ref : germIndex >= _ref; 0 <= _ref ? germIndex++ : germIndex--) {
           germ = this.germs[germIndex];
-          germ.move(this.context);
+          if (!this.status.freeze) germ.move(this.context);
           germ.draw(this.context);
           bulletHit = germ.isHit(bullets);
           powerUpHit = germ.isHit(powerups);
           if (bulletHit.hit) {
-            toCleanUp.push(germIndex);
             if (bulletHit.absorb) {
+              germ.health = 0;
               this.status.sickness = this.status.sickness + germ.damage;
               damage = true;
             } else {
+              germ.health--;
               this.status.score++;
             }
+            if (germ.health < 1) toCleanUp.push(germIndex);
           } else if (powerUpHit.hit) {
             toCleanUp.push(germIndex);
-            powerUpHit.item.takeDamage();
+            powerUpHit.item.takeDamage(germ.damage);
           } else if (germ.isOffscreen(this.canvas)) {
             this.status.sickness = this.status.sickness + germ.damage;
             damage = true;
@@ -155,7 +165,7 @@
           if (powerupHit.hit) {
             toCleanUp.push(powerupIndex);
             if (powerupHit.absorb) {
-              powerup.activate(this.canvas);
+              powerup.activate(this.canvas, this.status);
               this.activePowerUps.push(powerup);
             }
           } else if (powerup.isOffscreen(this.canvas)) {
@@ -272,6 +282,7 @@
       this.width = 10;
       this.height = 10;
       this.damage = 20;
+      this.health = 1;
     }
 
     Germ.prototype.draw = function(context) {
@@ -312,27 +323,78 @@
 
   })();
 
+  GiantGerm = (function(_super) {
+
+    __extends(GiantGerm, _super);
+
+    function GiantGerm(x, y) {
+      this.x = x;
+      this.y = y;
+      this.speed = 1;
+      this.width = 20;
+      this.height = 20;
+      this.damage = 60;
+      this.health = 30;
+    }
+
+    return GiantGerm;
+
+  })(Germ);
+
   PowerUp = (function(_super) {
 
     __extends(PowerUp, _super);
 
-    function PowerUp() {
-      PowerUp.__super__.constructor.apply(this, arguments);
+    function PowerUp(x, y) {
+      this.x = x;
+      this.y = y;
+      this.speed = 1;
+      this.width = 10;
+      this.height = 10;
+      this.damage = 20;
+      if (Math.random() < 0.5) {
+        this.type = 'freeze';
+      } else {
+        this.type = 'shield';
+      }
     }
 
-    PowerUp.prototype.activate = function(canvas) {
-      this.width = canvas.width;
-      this.x = 0;
-      return this.health = 3;
+    PowerUp.prototype.freezeTimeout = null;
+
+    PowerUp.prototype.cancelFreeze = function() {
+      clearTimeout(this.freezeTimeout);
+      return this.health = 0;
     };
 
-    PowerUp.prototype.takeDamage = function() {
-      this.health--;
+    PowerUp.prototype.activate = function(canvas, status) {
+      var _this = this;
+      if (this.type === 'freeze') {
+        status.freeze = true;
+        if (status.activeFreezePowerUp) status.activeFreezePowerUp.cancelFreeze();
+        status.activeFreezePowerUp = this;
+        return this.freezeTimeout = setTimeout(function() {
+          status.freeze = false;
+          status.activeFreezePowerUp = null;
+          return _this.health = 0;
+        }, 3000);
+      } else {
+        this.width = canvas.width;
+        this.x = 0;
+        return this.health = 60;
+      }
+    };
+
+    PowerUp.prototype.takeDamage = function(damage) {
+      this.health = this.health - damage;
       return this.height = this.height - 2;
     };
 
     PowerUp.prototype.draw = function(context) {
-      context.fillStyle = 'blue';
+      if (this.type === 'shield') {
+        context.fillStyle = 'blue';
+      } else {
+        context.fillStyle = 'purple';
+      }
       return context.fillRect(this.x, this.y, this.width, this.height);
     };
 
