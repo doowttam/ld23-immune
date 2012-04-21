@@ -7,8 +7,10 @@ class Immune
       pause: @doc.getElementById("pause")
 
     # Entities
-    @bullets = []
-    @germs   = []
+    @bullets        = []
+    @germs          = []
+    @powerups       = []
+    @activePowerUps = []
 
     # Status
     @status =
@@ -33,12 +35,15 @@ class Immune
     @resetCanvas()
 
     @drawBullets()
-    damage = @drawGerms(@bullets)
+    damage = @drawGerms(@bullets, @activePowerUps)
+    @drawPowerUps(@bullets)
+    @drawActivePowerUps(@bullets)
 
     @defender.move(@canvas, @key, @bullets)
     @defender.draw(@context)
 
     @spawnGerms()
+    @spawnPowerUps()
 
     @drawStatus()
 
@@ -85,7 +90,12 @@ class Immune
       randX = Math.ceil Math.random() * @canvas.width
       @germs.push( new Germ randX, 0 );
 
-  drawGerms: (bullets) ->
+  spawnPowerUps: ->
+    if Math.random() < 0.005
+      randX = Math.ceil Math.random() * @canvas.width
+      @powerups.push( new PowerUp randX, 0 );
+
+  drawGerms: (bullets, powerups) ->
     toCleanUp = [];
     damage    = false
 
@@ -95,19 +105,61 @@ class Immune
         germ.move(@context)
         germ.draw(@context)
 
-        if germ.isHit(bullets)
+        bulletHit  = germ.isHit(bullets)
+        powerUpHit = germ.isHit(powerups)
+        if bulletHit.hit
           toCleanUp.push germIndex
-          @status.score++
+          if bulletHit.absorb
+            @status.sickness = @status.sickness + germ.damage
+            damage = true
+          else
+            @status.score++
+        else if powerUpHit.hit
+          toCleanUp.push germIndex
+          powerUpHit.item.takeDamage()
         else if germ.isOffscreen(@canvas)
-          @status.sickness = @status.sickness + 20
+          @status.sickness = @status.sickness + germ.damage
           damage = true
           toCleanUp.push germIndex
-
 
       for germIndex in toCleanUp
         @germs.splice germIndex, 1
 
     return damage
+
+  drawPowerUps: (bullets) ->
+    toCleanUp = [];
+
+    if @powerups.length > 0
+      for powerupIndex in [ 0 .. @powerups.length - 1 ]
+        powerup = @powerups[powerupIndex]
+        powerup.move(@context)
+        powerup.draw(@context)
+
+        powerupHit = powerup.isHit(bullets)
+        if powerupHit.hit
+          toCleanUp.push powerupIndex
+          if powerupHit.absorb
+            powerup.activate(@canvas)
+            @activePowerUps.push powerup
+        else if powerup.isOffscreen(@canvas)
+          toCleanUp.push powerupIndex
+
+      for powerupIndex in toCleanUp
+        @powerups.splice powerupIndex, 1
+
+  drawActivePowerUps: (germs) ->
+    toCleanUp = [];
+
+    if @activePowerUps.length > 0
+      for powerUpIndex in [ 0 .. @activePowerUps.length - 1 ]
+        powerup = @activePowerUps[powerUpIndex]
+        powerup.draw @context
+        if powerup.health < 1
+          toCleanUp.push powerUpIndex
+
+      for powerUpIndex in toCleanUp
+        @activePowerUps.splice powerUpIndex, 1
 
   drawBullets: ->
     toCleanUp = [];
@@ -162,6 +214,7 @@ class Germ
     @speed = 1
     @width = 10
     @height = 10
+    @damage = 20
 
   draw: (context)->
     context.fillStyle = 'green'
@@ -172,13 +225,28 @@ class Germ
 
   isOffscreen: (canvas) -> if @y > canvas.height then true else false
 
-  isHit: (bullets) ->
-    for bullet in bullets
-      if ( @x <= bullet.x + bullet.width and
-           @x + @width >= bullet.x and
-           @y <= bullet.y + bullet.height and
-           @y + @height >= bullet.y )
-        return true
+  isHit: (items) ->
+    for item in items
+      if ( @x <= item.x + item.width and
+           @x + @width >= item.x and
+           @y <= item.y + item.height and
+           @y + @height >= item.y )
+        return { hit: true, absorb: item.absorb, item: item }
+    return { hit: false }
+
+class PowerUp extends Germ
+  activate: (canvas) ->
+    @width = canvas.width
+    @x = 0
+    @health = 3
+
+  takeDamage: ->
+    @health--
+    @height = @height - 2
+
+  draw: (context) ->
+    context.fillStyle = 'blue'
+    context.fillRect @x, @y, @width, @height
 
 class Defender
   constructor: (@x, @y) ->
@@ -199,9 +267,14 @@ class Defender
       @x = @x + @speed
     if key.isDown(key.codes.UP)
       @fire(bullets)
+    if key.isDown(key.codes.DOWN)
+      @absorb(bullets)
 
   fire: (bullets) ->
     bullets.push(new Bullet @x + @width / 2, @y)
+
+  absorb: (bullets) ->
+    bullets.push(new AbsorbBullet @x + @width / 2, @y)
 
 class Bullet
   constructor: (@x, @y) ->
@@ -210,12 +283,20 @@ class Bullet
     @height = 4
 
   draw: (context)->
+    context.fillStyle = 'black'
     context.fillRect @x - @width / 2, @y, @width, @height
 
   move: ->
     @y = @y - @speed;
 
   isOffscreen: -> if @y < 0 then true else false
+
+class AbsorbBullet extends Bullet
+  absorb: true
+
+  draw: (context)->
+    context.fillStyle = 'orange'
+    context.fillRect @x - @width / 2, @y, @width, @height
 
 window.onload = ->
   immune = new Immune window.document, window
