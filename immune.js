@@ -1,6 +1,8 @@
 (function() {
-  var Bullet, Defender, Germ, Immune, Key,
-    __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+  var AbsorbBullet, Bullet, Defender, Germ, Immune, Key, PowerUp,
+    __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+    __hasProp = Object.prototype.hasOwnProperty,
+    __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor; child.__super__ = parent.prototype; return child; };
 
   Immune = (function() {
 
@@ -18,6 +20,8 @@
       };
       this.bullets = [];
       this.germs = [];
+      this.powerups = [];
+      this.activePowerUps = [];
       this.status = {
         sickness: 0,
         score: 0
@@ -42,10 +46,13 @@
       var damage;
       this.resetCanvas();
       this.drawBullets();
-      damage = this.drawGerms(this.bullets);
+      damage = this.drawGerms(this.bullets, this.activePowerUps);
+      this.drawPowerUps(this.bullets);
+      this.drawActivePowerUps(this.bullets);
       this.defender.move(this.canvas, this.key, this.bullets);
       this.defender.draw(this.context);
       this.spawnGerms();
+      this.spawnPowerUps();
       this.drawStatus();
       if (this.status.sickness > 99) {
         return this.gameOver();
@@ -92,8 +99,16 @@
       }
     };
 
-    Immune.prototype.drawGerms = function(bullets) {
-      var damage, germ, germIndex, toCleanUp, _i, _len, _ref;
+    Immune.prototype.spawnPowerUps = function() {
+      var randX;
+      if (Math.random() < 0.005) {
+        randX = Math.ceil(Math.random() * this.canvas.width);
+        return this.powerups.push(new PowerUp(randX, 0));
+      }
+    };
+
+    Immune.prototype.drawGerms = function(bullets, powerups) {
+      var bulletHit, damage, germ, germIndex, powerUpHit, toCleanUp, _i, _len, _ref;
       toCleanUp = [];
       damage = false;
       if (this.germs.length > 0) {
@@ -101,11 +116,21 @@
           germ = this.germs[germIndex];
           germ.move(this.context);
           germ.draw(this.context);
-          if (germ.isHit(bullets)) {
+          bulletHit = germ.isHit(bullets);
+          powerUpHit = germ.isHit(powerups);
+          if (bulletHit.hit) {
             toCleanUp.push(germIndex);
-            this.status.score++;
+            if (bulletHit.absorb) {
+              this.status.sickness = this.status.sickness + germ.damage;
+              damage = true;
+            } else {
+              this.status.score++;
+            }
+          } else if (powerUpHit.hit) {
+            toCleanUp.push(germIndex);
+            powerUpHit.item.takeDamage();
           } else if (germ.isOffscreen(this.canvas)) {
-            this.status.sickness = this.status.sickness + 20;
+            this.status.sickness = this.status.sickness + germ.damage;
             damage = true;
             toCleanUp.push(germIndex);
           }
@@ -116,6 +141,52 @@
         }
       }
       return damage;
+    };
+
+    Immune.prototype.drawPowerUps = function(bullets) {
+      var powerup, powerupHit, powerupIndex, toCleanUp, _i, _len, _ref, _results;
+      toCleanUp = [];
+      if (this.powerups.length > 0) {
+        for (powerupIndex = 0, _ref = this.powerups.length - 1; 0 <= _ref ? powerupIndex <= _ref : powerupIndex >= _ref; 0 <= _ref ? powerupIndex++ : powerupIndex--) {
+          powerup = this.powerups[powerupIndex];
+          powerup.move(this.context);
+          powerup.draw(this.context);
+          powerupHit = powerup.isHit(bullets);
+          if (powerupHit.hit) {
+            toCleanUp.push(powerupIndex);
+            if (powerupHit.absorb) {
+              powerup.activate(this.canvas);
+              this.activePowerUps.push(powerup);
+            }
+          } else if (powerup.isOffscreen(this.canvas)) {
+            toCleanUp.push(powerupIndex);
+          }
+        }
+        _results = [];
+        for (_i = 0, _len = toCleanUp.length; _i < _len; _i++) {
+          powerupIndex = toCleanUp[_i];
+          _results.push(this.powerups.splice(powerupIndex, 1));
+        }
+        return _results;
+      }
+    };
+
+    Immune.prototype.drawActivePowerUps = function(germs) {
+      var powerUpIndex, powerup, toCleanUp, _i, _len, _ref, _results;
+      toCleanUp = [];
+      if (this.activePowerUps.length > 0) {
+        for (powerUpIndex = 0, _ref = this.activePowerUps.length - 1; 0 <= _ref ? powerUpIndex <= _ref : powerUpIndex >= _ref; 0 <= _ref ? powerUpIndex++ : powerUpIndex--) {
+          powerup = this.activePowerUps[powerUpIndex];
+          powerup.draw(this.context);
+          if (powerup.health < 1) toCleanUp.push(powerUpIndex);
+        }
+        _results = [];
+        for (_i = 0, _len = toCleanUp.length; _i < _len; _i++) {
+          powerUpIndex = toCleanUp[_i];
+          _results.push(this.activePowerUps.splice(powerUpIndex, 1));
+        }
+        return _results;
+      }
     };
 
     Immune.prototype.drawBullets = function() {
@@ -200,6 +271,7 @@
       this.speed = 1;
       this.width = 10;
       this.height = 10;
+      this.damage = 20;
     }
 
     Germ.prototype.draw = function(context) {
@@ -219,19 +291,54 @@
       }
     };
 
-    Germ.prototype.isHit = function(bullets) {
-      var bullet, _i, _len;
-      for (_i = 0, _len = bullets.length; _i < _len; _i++) {
-        bullet = bullets[_i];
-        if (this.x <= bullet.x + bullet.width && this.x + this.width >= bullet.x && this.y <= bullet.y + bullet.height && this.y + this.height >= bullet.y) {
-          return true;
+    Germ.prototype.isHit = function(items) {
+      var item, _i, _len;
+      for (_i = 0, _len = items.length; _i < _len; _i++) {
+        item = items[_i];
+        if (this.x <= item.x + item.width && this.x + this.width >= item.x && this.y <= item.y + item.height && this.y + this.height >= item.y) {
+          return {
+            hit: true,
+            absorb: item.absorb,
+            item: item
+          };
         }
       }
+      return {
+        hit: false
+      };
     };
 
     return Germ;
 
   })();
+
+  PowerUp = (function(_super) {
+
+    __extends(PowerUp, _super);
+
+    function PowerUp() {
+      PowerUp.__super__.constructor.apply(this, arguments);
+    }
+
+    PowerUp.prototype.activate = function(canvas) {
+      this.width = canvas.width;
+      this.x = 0;
+      return this.health = 3;
+    };
+
+    PowerUp.prototype.takeDamage = function() {
+      this.health--;
+      return this.height = this.height - 2;
+    };
+
+    PowerUp.prototype.draw = function(context) {
+      context.fillStyle = 'blue';
+      return context.fillRect(this.x, this.y, this.width, this.height);
+    };
+
+    return PowerUp;
+
+  })(Germ);
 
   Defender = (function() {
 
@@ -257,11 +364,16 @@
       if (key.isDown(key.codes.RIGHT) && this.x + this.speed <= canvas.width - this.width) {
         this.x = this.x + this.speed;
       }
-      if (key.isDown(key.codes.UP)) return this.fire(bullets);
+      if (key.isDown(key.codes.UP)) this.fire(bullets);
+      if (key.isDown(key.codes.DOWN)) return this.absorb(bullets);
     };
 
     Defender.prototype.fire = function(bullets) {
       return bullets.push(new Bullet(this.x + this.width / 2, this.y));
+    };
+
+    Defender.prototype.absorb = function(bullets) {
+      return bullets.push(new AbsorbBullet(this.x + this.width / 2, this.y));
     };
 
     return Defender;
@@ -279,6 +391,7 @@
     }
 
     Bullet.prototype.draw = function(context) {
+      context.fillStyle = 'black';
       return context.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
     };
 
@@ -297,6 +410,25 @@
     return Bullet;
 
   })();
+
+  AbsorbBullet = (function(_super) {
+
+    __extends(AbsorbBullet, _super);
+
+    function AbsorbBullet() {
+      AbsorbBullet.__super__.constructor.apply(this, arguments);
+    }
+
+    AbsorbBullet.prototype.absorb = true;
+
+    AbsorbBullet.prototype.draw = function(context) {
+      context.fillStyle = 'orange';
+      return context.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
+    };
+
+    return AbsorbBullet;
+
+  })(Bullet);
 
   window.onload = function() {
     var immune;
