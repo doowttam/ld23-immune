@@ -1,5 +1,5 @@
 (function() {
-  var AbsorbBullet, Bullet, Defender, Germ, GiantGerm, Immune, Key, PowerUp,
+  var AbsorbBullet, Bullet, Defender, FreezeBomb, Germ, GiantGerm, Immune, Key, PowerUp, Shield, Vitamin,
     __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
     __hasProp = Object.prototype.hasOwnProperty,
     __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor; child.__super__ = parent.prototype; return child; };
@@ -27,7 +27,8 @@
         sickness: 0,
         score: 0,
         freeze: false,
-        activeFreezePowerUp: null
+        activeFreezePowerUp: null,
+        frame: 0
       };
       this.buttons.start.onclick = this.play;
       this.buttons.pause.onclick = this.pause;
@@ -50,8 +51,8 @@
         _this = this;
       imageCount = 0;
       audioCount = 0;
-      images = ['img/germ.png'];
-      audios = ['sfx/shoot.ogg', 'sfx/explode.ogg', 'sfx/damage.ogg', 'sfx/absorb.ogg', 'sfx/powerup.ogg'];
+      images = ['img/germ.png', 'img/bg.png', 'img/vitamin.png', 'img/shield.png', 'img/freeze.png', 'img/defender.png', 'img/giant_germ.png'];
+      audios = ['sfx/shoot.ogg', 'sfx/explode.ogg', 'sfx/damage.ogg', 'sfx/absorb.ogg', 'sfx/powerup.ogg', 'bg.ogg'];
       finished = false;
       this.loading(imageCount + audioCount, images.length + audios.length);
       setTimeout(function() {
@@ -59,8 +60,9 @@
           playCallback();
           return finished = true;
         }
-      }, 4000);
+      }, 10000);
       resourceOnLoad = function(type) {
+        if (finished) return;
         if (type === 'image') imageCount++;
         if (type === 'audio') audioCount++;
         _this.loading(imageCount + audioCount, images.length + audios.length);
@@ -107,12 +109,70 @@
 
     Immune.prototype.showTitleScreen = function() {
       this.resetCanvas();
+      this.context.drawImage(this.resource['img/bg.png'], 0, 0);
       this.context.fillStyle = 'rgba(0,0,0,.7)';
       this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
-      this.context.fillStyle = 'black';
-      this.context.font = 'bold 48px sans-serif';
+      this.context.fillStyle = 'white';
+      this.context.font = 'bold 36px sans-serif';
+      this.context.textAlign = 'left';
+      this.context.fillText("Immune", 250, 60);
+      this.context.font = 'bold 16px sans-serif';
       this.context.textAlign = 'center';
-      return this.context.fillText("Immune", this.canvas.width / 2, 125);
+      this.context.fillText("You're the defense!", 130, 50);
+      this.context.font = 'bold 12px sans-serif';
+      this.context.textAlign = 'right';
+      this.context.fillText("You", 130, 70);
+      this.context.drawImage(this.resource['img/defender.png'], 140, 60);
+      this.context.font = 'bold 12px sans-serif';
+      this.context.textAlign = 'right';
+      this.context.fillText("Attack Ray", 130, 90);
+      this.context.fillStyle = 'black';
+      this.context.fillRect(150, 82, 4, 10);
+      this.context.fillStyle = 'white';
+      this.context.font = 'bold 12px sans-serif';
+      this.context.textAlign = 'right';
+      this.context.fillText("Absorption Ray", 130, 110);
+      this.context.fillStyle = 'orange';
+      this.context.fillRect(150, 102, 4, 10);
+      this.context.fillStyle = 'white';
+      this.context.font = 'bold 16px sans-serif';
+      this.context.textAlign = 'center';
+      this.context.fillText("Destroy the germs!", 130, 150);
+      this.context.font = 'bold 12px sans-serif';
+      this.context.textAlign = 'right';
+      this.context.fillText("Germ", 130, 170);
+      this.context.drawImage(this.resource['img/germ.png'], 0, 0, 10, 10, 140, 160, 10, 10);
+      this.context.font = 'bold 12px sans-serif';
+      this.context.textAlign = 'right';
+      this.context.fillText("Super Germ", 130, 190);
+      this.context.drawImage(this.resource['img/giant_germ.png'], 0, 0, 20, 20, 140, 180, 20, 20);
+      this.context.fillStyle = 'white';
+      this.context.font = 'bold 16px sans-serif';
+      this.context.textAlign = 'center';
+      this.context.fillText("Power Up!", 130, 230);
+      this.context.font = 'bold 12px sans-serif';
+      this.context.textAlign = 'right';
+      this.context.fillText("Germ Freeze", 130, 250);
+      this.context.drawImage(this.resource['img/freeze.png'], 0, 0, 10, 10, 140, 240, 10, 10);
+      this.context.font = 'bold 12px sans-serif';
+      this.context.textAlign = 'right';
+      this.context.fillText("Shield", 130, 270);
+      this.context.drawImage(this.resource['img/shield.png'], 0, 0, 10, 10, 140, 260, 10, 10);
+      this.context.font = 'bold 12px sans-serif';
+      this.context.textAlign = 'right';
+      this.context.fillText("Health", 130, 290);
+      this.context.drawImage(this.resource['img/vitamin.png'], 0, 0, 10, 10, 140, 280, 10, 10);
+      this.context.font = 'bold 12px sans-serif';
+      this.context.textAlign = 'left';
+      this.context.fillText("Left and Right arrow keys move.", 250, 100);
+      this.context.fillText("Press Up to fire attack. Press Down to fire absorb ray.", 250, 120);
+      this.context.fillText("Hit power-ups with absorb rays to use them.", 250, 150);
+      this.context.fillText("Destory the germs, don't hit them with your absorb ray!", 250, 170);
+      this.context.fillText("Super germs cause more sickness.", 250, 200);
+      this.context.fillText("Germs that get passed you will cause you to get sick.", 250, 220);
+      this.context.font = 'bold 16px sans-serif';
+      this.context.textAlign = 'left';
+      return this.context.fillText("Press Start to play!", 250, 280);
     };
 
     Immune.prototype.showPauseScreen = function() {
@@ -127,15 +187,22 @@
     Immune.prototype.drawFrame = function() {
       var damage;
       this.resetCanvas();
+      this.status.frame++;
+      this.context.drawImage(this.resource['img/bg.png'], 0, 0);
       damage = this.drawGerms(this.bullets, this.activePowerUps, this.resource);
       this.drawPowerUps(this.bullets, this.resource);
       this.drawActivePowerUps(this.bullets);
       this.drawBullets();
       this.defender.move(this.canvas, this.key, this.bullets, this.resource);
-      this.defender.draw(this.context);
+      this.defender.draw(this.context, this.resource);
       if (!this.status.freeze) {
         this.spawnGerms();
         this.spawnPowerUps();
+      } else {
+        this.context.fillStyle = 'purple';
+        this.context.font = 'bold 12px sans-serif';
+        this.context.textAlign = 'left';
+        this.context.fillText('GERM FREEZE', 80, 42);
       }
       this.drawStatus();
       if (this.status.sickness > 99) {
@@ -156,11 +223,15 @@
       this.context.fillStyle = 'white';
       this.context.font = 'bold 48px sans-serif';
       this.context.textAlign = 'center';
-      this.context.fillText("You got sick!", this.canvas.width / 2, 125);
+      this.context.fillText("Oh no! Now you're sick!", this.canvas.width / 2, 125);
       this.context.fillStyle = 'white';
       this.context.font = 'bold 36px sans-serif';
       this.context.textAlign = 'center';
-      return this.context.fillText("Score: " + this.status.score, this.canvas.width / 2, 200);
+      this.context.fillText("Score: " + this.status.score, this.canvas.width / 2, 200);
+      this.context.fillStyle = 'white';
+      this.context.font = 'bold 24px sans-serif';
+      this.context.textAlign = 'center';
+      return this.context.fillText("(Hope you feel better.)", this.canvas.width / 2, 250);
     };
 
     Immune.prototype.drawStatus = function() {
@@ -180,9 +251,9 @@
 
     Immune.prototype.spawnGerms = function() {
       var randX;
-      if (Math.random() < 0.01) {
-        randX = Math.ceil(Math.random() * this.canvas.width);
-        if (Math.random() < 0.7) {
+      if (Math.random() < 0.02) {
+        randX = Math.ceil((Math.random() * (this.canvas.width - 100)) + 50);
+        if (Math.random() < 0.8 && this.status.frame < 3500) {
           return this.germs.push(new Germ(randX, 0));
         } else {
           return this.germs.push(new GiantGerm(randX, 0));
@@ -191,10 +262,17 @@
     };
 
     Immune.prototype.spawnPowerUps = function() {
-      var randX;
+      var randX, spawnType;
       if (Math.random() < 0.005) {
-        randX = Math.ceil(Math.random() * this.canvas.width);
-        return this.powerups.push(new PowerUp(randX, 0));
+        randX = Math.ceil((Math.random() * (this.canvas.width - 100)) + 50);
+        spawnType = Math.random();
+        if (spawnType < 0.4) {
+          return this.powerups.push(new FreezeBomb(randX, 0));
+        } else if (spawnType < 0.7) {
+          return this.powerups.push(new Shield(randX, 0));
+        } else {
+          return this.powerups.push(new Vitamin(randX, 0));
+        }
       }
     };
 
@@ -245,13 +323,15 @@
         for (powerupIndex = 0, _ref = this.powerups.length - 1; 0 <= _ref ? powerupIndex <= _ref : powerupIndex >= _ref; 0 <= _ref ? powerupIndex++ : powerupIndex--) {
           powerup = this.powerups[powerupIndex];
           powerup.move(this.context);
-          powerup.draw(this.context);
+          powerup.draw(this.context, resource);
           powerupHit = powerup.isHit(bullets);
           if (powerupHit.hit) {
             toCleanUp.push(powerupIndex);
             if (powerupHit.absorb) {
               powerup.activate(this.canvas, this.status, resource);
               this.activePowerUps.push(powerup);
+            } else {
+              resource['sfx/explode.ogg'].play();
             }
           } else if (powerup.isOffscreen(this.canvas)) {
             toCleanUp.push(powerupIndex);
@@ -272,7 +352,7 @@
       if (this.activePowerUps.length > 0) {
         for (powerUpIndex = 0, _ref = this.activePowerUps.length - 1; 0 <= _ref ? powerUpIndex <= _ref : powerUpIndex >= _ref; 0 <= _ref ? powerUpIndex++ : powerUpIndex--) {
           powerup = this.activePowerUps[powerUpIndex];
-          powerup.draw(this.context);
+          powerup.draw(this.context, this.resource);
           if (powerup.health < 1) toCleanUp.push(powerUpIndex);
         }
         _results = [];
@@ -309,6 +389,10 @@
       if (this.over) {
         return location.reload();
       } else {
+        this.resource['bg.ogg'].addEventListener('ended', function() {
+          return _this.resource['bg.ogg'].play();
+        });
+        this.resource['bg.ogg'].play();
         return this.frameInterval = setInterval(function() {
           return _this.drawFrame();
         }, 20);
@@ -371,7 +455,7 @@
       this.speed = 1;
       this.width = 10;
       this.height = 10;
-      this.damage = 20;
+      this.damage = 5;
       this.health = this.baseHealth = 1;
       this.frame = 0;
     }
@@ -379,7 +463,7 @@
     Germ.prototype.draw = function(context, resource) {
       var offset;
       offset = this.frame <= 4 ? 1 : 0;
-      return context.drawImage(resource['img/germ.png'], 20 * offset, 0, 20, 20, this.x, this.y, this.width, this.height);
+      return context.drawImage(resource['img/germ.png'], 10 * offset, 0, 10, 10, this.x, this.y, this.width, this.height);
     };
 
     Germ.prototype.move = function() {
@@ -431,14 +515,14 @@
       this.speed = 0.5;
       this.width = 20;
       this.height = 20;
-      this.damage = 60;
+      this.damage = 30;
       this.health = this.baseHealth = 15;
     }
 
     GiantGerm.prototype.draw = function(context, resource) {
       var healthWidth, offset;
       offset = this.frame <= 4 ? 1 : 0;
-      context.drawImage(resource['img/germ.png'], 20 * offset, 0, 20, 20, this.x, this.y, this.width, this.height);
+      context.drawImage(resource['img/giant_germ.png'], 20 * offset, 0, 20, 20, this.x, this.y, this.width, this.height);
       context.fillStyle = 'red';
       if (this.health < this.baseHealth) {
         healthWidth = this.width * this.health / this.baseHealth;
@@ -460,39 +544,8 @@
       this.speed = 1;
       this.width = 10;
       this.height = 10;
-      this.damage = 20;
-      if (Math.random() < 0.5) {
-        this.type = 'freeze';
-      } else {
-        this.type = 'shield';
-      }
+      this.damage = 15;
     }
-
-    PowerUp.prototype.freezeTimeout = null;
-
-    PowerUp.prototype.cancelFreeze = function() {
-      clearTimeout(this.freezeTimeout);
-      return this.health = 0;
-    };
-
-    PowerUp.prototype.activate = function(canvas, status, resource) {
-      var _this = this;
-      resource['sfx/powerup.ogg'].play();
-      if (this.type === 'freeze') {
-        status.freeze = true;
-        if (status.activeFreezePowerUp) status.activeFreezePowerUp.cancelFreeze();
-        status.activeFreezePowerUp = this;
-        return this.freezeTimeout = setTimeout(function() {
-          status.freeze = false;
-          status.activeFreezePowerUp = null;
-          return _this.health = 0;
-        }, 3000);
-      } else {
-        this.width = canvas.width;
-        this.x = 0;
-        return this.health = 60;
-      }
-    };
 
     PowerUp.prototype.takeDamage = function(damage) {
       this.health = this.health - damage;
@@ -500,17 +553,114 @@
     };
 
     PowerUp.prototype.draw = function(context) {
-      if (this.type === 'shield') {
-        context.fillStyle = 'blue';
-      } else {
-        context.fillStyle = 'purple';
-      }
+      context.fillStyle = this.color;
       return context.fillRect(this.x, this.y, this.width, this.height);
     };
 
     return PowerUp;
 
   })(Germ);
+
+  Shield = (function(_super) {
+
+    __extends(Shield, _super);
+
+    function Shield() {
+      Shield.__super__.constructor.apply(this, arguments);
+    }
+
+    Shield.prototype.color = 'blue';
+
+    Shield.prototype.activate = function(canvas, status, resource) {
+      resource['sfx/powerup.ogg'].play();
+      this.width = canvas.width;
+      this.x = 0;
+      return this.health = 15;
+    };
+
+    Shield.prototype.draw = function(context, resource) {
+      var offset;
+      offset = this.frame <= 4 ? 1 : 0;
+      return context.drawImage(resource['img/shield.png'], 10 * offset, 0, 10, 10, this.x, this.y, this.width, this.height);
+    };
+
+    return Shield;
+
+  })(PowerUp);
+
+  Vitamin = (function(_super) {
+
+    __extends(Vitamin, _super);
+
+    function Vitamin() {
+      Vitamin.__super__.constructor.apply(this, arguments);
+    }
+
+    Vitamin.prototype.color = 'red';
+
+    Vitamin.prototype.healing = 10;
+
+    Vitamin.prototype.activate = function(canvas, status, resource) {
+      resource['sfx/powerup.ogg'].play();
+      if (status.sickness - this.healing > 0) {
+        status.sickness = status.sickness - this.healing;
+      } else {
+        status.sickness = 0;
+      }
+      return this.health = 0;
+    };
+
+    Vitamin.prototype.draw = function(context, resource) {
+      var offset;
+      offset = this.frame <= 4 ? 1 : 0;
+      return context.drawImage(resource['img/vitamin.png'], 10 * offset, 0, 10, 10, this.x, this.y, this.width, this.height);
+    };
+
+    return Vitamin;
+
+  })(PowerUp);
+
+  FreezeBomb = (function(_super) {
+
+    __extends(FreezeBomb, _super);
+
+    function FreezeBomb() {
+      FreezeBomb.__super__.constructor.apply(this, arguments);
+    }
+
+    FreezeBomb.prototype.freezeTimeout = null;
+
+    FreezeBomb.prototype.color = 'purple';
+
+    FreezeBomb.prototype.cancelFreeze = function() {
+      clearTimeout(this.freezeTimeout);
+      return this.health = 0;
+    };
+
+    FreezeBomb.prototype.activate = function(canvas, status, resource) {
+      var _this = this;
+      resource['sfx/powerup.ogg'].play();
+      status.freeze = true;
+      if (status.activeFreezePowerUp) status.activeFreezePowerUp.cancelFreeze();
+      status.activeFreezePowerUp = this;
+      return this.freezeTimeout = setTimeout(function() {
+        status.freeze = false;
+        status.activeFreezePowerUp = null;
+        return _this.health = 0;
+      }, 3000);
+    };
+
+    FreezeBomb.prototype.draw = function(context, resource) {
+      if (this.freezeTimeout) {
+        return context.drawImage(resource['img/freeze.png'], 10, 0, 10, 10, this.x, this.y, this.width, this.height);
+      } else {
+        return context.drawImage(resource['img/freeze.png'], 0, 0, 10, 10, this.x, this.y, this.width, this.height);
+      }
+    };
+
+    return FreezeBomb;
+
+  })(PowerUp);
 
   Defender = (function() {
 
@@ -519,15 +669,12 @@
       this.y = y;
       this.speed = 2;
       this.width = 24;
-      this.height = 10;
+      this.height = 15;
       this.cooldown = false;
     }
 
-    Defender.prototype.draw = function(context) {
-      context.fillStyle = 'black';
-      context.fillRect(this.x, this.y, this.width, this.height);
-      context.fillStyle = 'red';
-      return context.fillRect(this.x + this.width / 4, this.y - this.height / 2, this.width / 2, this.height / 2);
+    Defender.prototype.draw = function(context, resource) {
+      return context.drawImage(resource['img/defender.png'], this.x, this.y);
     };
 
     Defender.prototype.move = function(canvas, key, bullets, resource) {
