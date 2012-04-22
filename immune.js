@@ -22,6 +22,7 @@
       this.germs = [];
       this.powerups = [];
       this.activePowerUps = [];
+      this.resource = {};
       this.status = {
         sickness: 0,
         score: 0,
@@ -38,20 +39,99 @@
         return _this.key.onKeyDown(e);
       };
       this.defender = new Defender(this.canvas.width / 2, this.canvas.height - 50);
+      this.loadResources(function() {
+        _this.buttons.start.disabled = false;
+        return _this.showTitleScreen();
+      });
     }
+
+    Immune.prototype.loadResources = function(playCallback) {
+      var audioCount, audioName, audios, finished, imageCount, imageName, images, img, resourceOnLoad, sound, _i, _j, _len, _len2, _results,
+        _this = this;
+      imageCount = 0;
+      audioCount = 0;
+      images = ['img/germ.png'];
+      audios = ['sfx/shoot.ogg', 'sfx/explode.ogg', 'sfx/damage.ogg', 'sfx/absorb.ogg', 'sfx/powerup.ogg'];
+      finished = false;
+      this.loading(imageCount + audioCount, images.length + audios.length);
+      setTimeout(function() {
+        if (!finished) {
+          playCallback();
+          return finished = true;
+        }
+      }, 4000);
+      resourceOnLoad = function(type) {
+        if (type === 'image') imageCount++;
+        if (type === 'audio') audioCount++;
+        _this.loading(imageCount + audioCount, images.length + audios.length);
+        if (imageCount === images.length && audioCount === audios.length) {
+          if (!finished) playCallback();
+          return finished = true;
+        }
+      };
+      for (_i = 0, _len = images.length; _i < _len; _i++) {
+        imageName = images[_i];
+        img = new Image();
+        img.src = imageName;
+        img.addEventListener('load', function() {
+          return resourceOnLoad('image');
+        });
+        this.resource[imageName] = img;
+      }
+      _results = [];
+      for (_j = 0, _len2 = audios.length; _j < _len2; _j++) {
+        audioName = audios[_j];
+        sound = new Audio();
+        sound.src = audioName;
+        sound.addEventListener('canplaythrough', function() {
+          return resourceOnLoad('audio');
+        });
+        _results.push(this.resource[audioName] = sound);
+      }
+      return _results;
+    };
 
     Immune.prototype.resetCanvas = function() {
       return this.canvas.width = this.canvas.width;
     };
 
+    Immune.prototype.loading = function(cur, total) {
+      var msg;
+      this.resetCanvas();
+      msg = "Loading (" + cur + "/" + total + ")...";
+      this.context.font = "bold 12px sans-serif";
+      this.context.textAlign = "center";
+      this.context.textBaseline = "middle";
+      return this.context.fillText(msg, this.canvas.width - this.canvas.width / 2, this.canvas.height - this.canvas.height / 2);
+    };
+
+    Immune.prototype.showTitleScreen = function() {
+      this.resetCanvas();
+      this.context.fillStyle = 'rgba(0,0,0,.7)';
+      this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.context.fillStyle = 'black';
+      this.context.font = 'bold 48px sans-serif';
+      this.context.textAlign = 'center';
+      return this.context.fillText("Immune", this.canvas.width / 2, 125);
+    };
+
+    Immune.prototype.showPauseScreen = function() {
+      this.context.fillStyle = 'rgba(0,0,0,.7)';
+      this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.context.fillStyle = 'white';
+      this.context.font = 'bold 48px sans-serif';
+      this.context.textAlign = 'center';
+      return this.context.fillText("Paused", this.canvas.width / 2, 125);
+    };
+
     Immune.prototype.drawFrame = function() {
       var damage;
       this.resetCanvas();
-      this.drawBullets();
-      damage = this.drawGerms(this.bullets, this.activePowerUps);
-      this.drawPowerUps(this.bullets);
+      damage = this.drawGerms(this.bullets, this.activePowerUps, this.resource);
+      this.drawPowerUps(this.bullets, this.resource);
       this.drawActivePowerUps(this.bullets);
-      this.defender.move(this.canvas, this.key, this.bullets);
+      this.drawBullets();
+      this.defender.move(this.canvas, this.key, this.bullets, this.resource);
       this.defender.draw(this.context);
       if (!this.status.freeze) {
         this.spawnGerms();
@@ -62,12 +142,15 @@
         return this.gameOver();
       } else if (damage) {
         this.context.fillStyle = 'red';
-        return this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        return this.resource['sfx/damage.ogg'].play();
       }
     };
 
     Immune.prototype.gameOver = function() {
-      this.pause();
+      this.over = true;
+      clearInterval(this.frameInterval);
+      this.frameInterval = null;
       this.context.fillStyle = 'rgba(0,0,0,.7)';
       this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
       this.context.fillStyle = 'white';
@@ -115,7 +198,7 @@
       }
     };
 
-    Immune.prototype.drawGerms = function(bullets, powerups) {
+    Immune.prototype.drawGerms = function(bullets, powerups, resource) {
       var bulletHit, damage, germ, germIndex, powerUpHit, toCleanUp, _i, _len, _ref;
       toCleanUp = [];
       damage = false;
@@ -123,7 +206,7 @@
         for (germIndex = 0, _ref = this.germs.length - 1; 0 <= _ref ? germIndex <= _ref : germIndex >= _ref; 0 <= _ref ? germIndex++ : germIndex--) {
           germ = this.germs[germIndex];
           if (!this.status.freeze) germ.move(this.context);
-          germ.draw(this.context);
+          germ.draw(this.context, resource);
           bulletHit = germ.isHit(bullets);
           powerUpHit = germ.isHit(powerups);
           if (bulletHit.hit) {
@@ -134,11 +217,13 @@
             } else {
               germ.health--;
               this.status.score++;
+              if (germ.health < 1) resource['sfx/explode.ogg'].play();
             }
             if (germ.health < 1) toCleanUp.push(germIndex);
           } else if (powerUpHit.hit) {
             toCleanUp.push(germIndex);
             powerUpHit.item.takeDamage(germ.damage);
+            resource['sfx/explode.ogg'].play();
           } else if (germ.isOffscreen(this.canvas)) {
             this.status.sickness = this.status.sickness + germ.damage;
             damage = true;
@@ -153,7 +238,7 @@
       return damage;
     };
 
-    Immune.prototype.drawPowerUps = function(bullets) {
+    Immune.prototype.drawPowerUps = function(bullets, resource) {
       var powerup, powerupHit, powerupIndex, toCleanUp, _i, _len, _ref, _results;
       toCleanUp = [];
       if (this.powerups.length > 0) {
@@ -165,7 +250,7 @@
           if (powerupHit.hit) {
             toCleanUp.push(powerupIndex);
             if (powerupHit.absorb) {
-              powerup.activate(this.canvas, this.status);
+              powerup.activate(this.canvas, this.status, resource);
               this.activePowerUps.push(powerup);
             }
           } else if (powerup.isOffscreen(this.canvas)) {
@@ -207,7 +292,7 @@
           bullet = this.bullets[bulletIndex];
           bullet.move(this.context);
           bullet.draw(this.context);
-          if (bullet.isOffscreen()) toCleanUp.push(bulletIndex);
+          if (bullet.usedUp()) toCleanUp.push(bulletIndex);
         }
         _results = [];
         for (_i = 0, _len = toCleanUp.length; _i < _len; _i++) {
@@ -221,15 +306,20 @@
     Immune.prototype.play = function() {
       var _this = this;
       if (this.frameInterval) return;
-      return this.frameInterval = setInterval(function() {
-        return _this.drawFrame();
-      }, 20);
+      if (this.over) {
+        return location.reload();
+      } else {
+        return this.frameInterval = setInterval(function() {
+          return _this.drawFrame();
+        }, 20);
+      }
     };
 
     Immune.prototype.pause = function() {
       if (this.frameInterval) {
         clearInterval(this.frameInterval);
-        return this.frameInterval = null;
+        this.frameInterval = null;
+        return this.showPauseScreen();
       } else {
         return this.play();
       }
@@ -282,16 +372,23 @@
       this.width = 10;
       this.height = 10;
       this.damage = 20;
-      this.health = 1;
+      this.health = this.baseHealth = 1;
+      this.frame = 0;
     }
 
-    Germ.prototype.draw = function(context) {
-      context.fillStyle = 'green';
-      return context.fillRect(this.x, this.y, this.width, this.height);
+    Germ.prototype.draw = function(context, resource) {
+      var offset;
+      offset = this.frame <= 4 ? 1 : 0;
+      return context.drawImage(resource['img/germ.png'], 20 * offset, 0, 20, 20, this.x, this.y, this.width, this.height);
     };
 
     Germ.prototype.move = function() {
-      return this.y = this.y + this.speed;
+      this.y = this.y + this.speed;
+      if (this.frame < 9) {
+        return this.frame++;
+      } else {
+        return this.frame = 0;
+      }
     };
 
     Germ.prototype.isOffscreen = function(canvas) {
@@ -307,6 +404,7 @@
       for (_i = 0, _len = items.length; _i < _len; _i++) {
         item = items[_i];
         if (this.x <= item.x + item.width && this.x + this.width >= item.x && this.y <= item.y + item.height && this.y + this.height >= item.y) {
+          item.hitSomething = true;
           return {
             hit: true,
             absorb: item.absorb,
@@ -330,12 +428,23 @@
     function GiantGerm(x, y) {
       this.x = x;
       this.y = y;
-      this.speed = 1;
+      this.speed = 0.5;
       this.width = 20;
       this.height = 20;
       this.damage = 60;
-      this.health = 30;
+      this.health = this.baseHealth = 15;
     }
+
+    GiantGerm.prototype.draw = function(context, resource) {
+      var healthWidth, offset;
+      offset = this.frame <= 4 ? 1 : 0;
+      context.drawImage(resource['img/germ.png'], 20 * offset, 0, 20, 20, this.x, this.y, this.width, this.height);
+      context.fillStyle = 'red';
+      if (this.health < this.baseHealth) {
+        healthWidth = this.width * this.health / this.baseHealth;
+        return context.fillRect(this.x, this.y, healthWidth, 5);
+      }
+    };
 
     return GiantGerm;
 
@@ -366,8 +475,9 @@
       return this.health = 0;
     };
 
-    PowerUp.prototype.activate = function(canvas, status) {
+    PowerUp.prototype.activate = function(canvas, status, resource) {
       var _this = this;
+      resource['sfx/powerup.ogg'].play();
       if (this.type === 'freeze') {
         status.freeze = true;
         if (status.activeFreezePowerUp) status.activeFreezePowerUp.cancelFreeze();
@@ -410,6 +520,7 @@
       this.speed = 2;
       this.width = 24;
       this.height = 10;
+      this.cooldown = false;
     }
 
     Defender.prototype.draw = function(context) {
@@ -419,23 +530,37 @@
       return context.fillRect(this.x + this.width / 4, this.y - this.height / 2, this.width / 2, this.height / 2);
     };
 
-    Defender.prototype.move = function(canvas, key, bullets) {
+    Defender.prototype.move = function(canvas, key, bullets, resource) {
       if (key.isDown(key.codes.LEFT) && this.x - this.speed >= 0) {
         this.x = this.x - this.speed;
       }
       if (key.isDown(key.codes.RIGHT) && this.x + this.speed <= canvas.width - this.width) {
         this.x = this.x + this.speed;
       }
-      if (key.isDown(key.codes.UP)) this.fire(bullets);
-      if (key.isDown(key.codes.DOWN)) return this.absorb(bullets);
+      if (key.isDown(key.codes.UP)) this.fire(bullets, resource);
+      if (key.isDown(key.codes.DOWN)) return this.absorb(bullets, resource);
     };
 
-    Defender.prototype.fire = function(bullets) {
-      return bullets.push(new Bullet(this.x + this.width / 2, this.y));
+    Defender.prototype.fire = function(bullets, resource) {
+      var _this = this;
+      if (this.cooldown) return;
+      resource['sfx/shoot.ogg'].play();
+      bullets.push(new Bullet(this.x + this.width / 2, this.y));
+      this.cooldown = true;
+      return setTimeout(function() {
+        return _this.cooldown = false;
+      }, 100);
     };
 
-    Defender.prototype.absorb = function(bullets) {
-      return bullets.push(new AbsorbBullet(this.x + this.width / 2, this.y));
+    Defender.prototype.absorb = function(bullets, resource) {
+      var _this = this;
+      if (this.cooldown) return;
+      resource['sfx/absorb.ogg'].play();
+      bullets.push(new AbsorbBullet(this.x + this.width / 2, this.y));
+      this.cooldown = true;
+      return setTimeout(function() {
+        return _this.cooldown = false;
+      }, 100);
     };
 
     return Defender;
@@ -449,7 +574,8 @@
       this.y = y;
       this.speed = 3;
       this.width = 4;
-      this.height = 4;
+      this.height = 10;
+      this.hitSomething = false;
     }
 
     Bullet.prototype.draw = function(context) {
@@ -459,6 +585,14 @@
 
     Bullet.prototype.move = function() {
       return this.y = this.y - this.speed;
+    };
+
+    Bullet.prototype.usedUp = function() {
+      if (this.isOffscreen() || this.hitSomething) {
+        return true;
+      } else {
+        return false;
+      }
     };
 
     Bullet.prototype.isOffscreen = function() {
@@ -494,9 +628,7 @@
 
   window.onload = function() {
     var immune;
-    immune = new Immune(window.document, window);
-    immune.drawFrame();
-    return immune.play();
+    return immune = new Immune(window.document, window);
   };
 
 }).call(this);
